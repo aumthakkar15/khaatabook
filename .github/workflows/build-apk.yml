@@ -7,24 +7,78 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-      - run: flutter create --org com.biztras --project-name khaata_book --platforms android .
-      - run: cp android_overrides/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-      - run: find android/app/src/main/kotlin -name MainActivity.kt -delete
-      - run: mkdir -p android/app/src/main/kotlin/com/biztras/khaata_book
-      - run: cp android_overrides/app/src/main/kotlin/com/biztras/khaata_book/MainActivity.kt android/app/src/main/kotlin/com/biztras/khaata_book/
-      - run: sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/' android/app/build.gradle.kts
-      - run: sed -i 's/compileOptions {/compileOptions {\n        isCoreLibraryDesugaringEnabled = true/' android/app/build.gradle.kts
-      - run: printf '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n' >> android/app/build.gradle.kts
-      - run: flutter pub get
-      - run: flutter build apk --release
-      - run: cp build/app/outputs/flutter-apk/app-release.apk KhaataBook.apk
+      - name: Find the project folder
+        run: echo "DIR=$(dirname $(find . -name pubspec.yaml -not -path '*/build/*' | head -1))" >> $GITHUB_ENV
+      - name: Create Android project
+        run: cd "$DIR" && flutter create --org com.biztras --project-name khaata_book --platforms android .
+      - name: Write MainActivity
+        run: |
+          cd "$DIR"
+          find android/app/src/main/kotlin -name MainActivity.kt -delete
+          mkdir -p android/app/src/main/kotlin/com/biztras/khaata_book
+          cat > android/app/src/main/kotlin/com/biztras/khaata_book/MainActivity.kt <<'EOF'
+          package com.biztras.khaata_book
+          import io.flutter.embedding.android.FlutterFragmentActivity
+          class MainActivity : FlutterFragmentActivity()
+          EOF
+      - name: Write AndroidManifest
+        run: |
+          cd "$DIR"
+          cat > android/app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+              <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+              <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+              <uses-permission android:name="android.permission.VIBRATE" />
+              <application android:label="Khaata Book" android:name="${applicationName}" android:icon="@mipmap/ic_launcher">
+                  <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:taskAffinity="" android:theme="@style/LaunchTheme" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" android:hardwareAccelerated="true" android:windowSoftInputMode="adjustResize">
+                      <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme" />
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+                  <meta-data android:name="flutterEmbedding" android:value="2" />
+                  <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+                  <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+                      <intent-filter>
+                          <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                          <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                          <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                      </intent-filter>
+                  </receiver>
+              </application>
+              <queries>
+                  <intent>
+                      <action android:name="android.intent.action.PROCESS_TEXT"/>
+                      <data android:mimeType="text/plain"/>
+                  </intent>
+              </queries>
+          </manifest>
+          EOF
+      - name: Gradle settings
+        run: |
+          cd "$DIR"
+          G=android/app/build.gradle.kts
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/' $G
+          sed -i 's/compileOptions {/compileOptions {\n        isCoreLibraryDesugaringEnabled = true/' $G
+          printf '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n' >> $G
+      - name: Get packages
+        run: cd "$DIR" && flutter pub get
+      - name: Build APK
+        run: cd "$DIR" && flutter build apk --release
+      - name: Collect
+        run: cp "$DIR"/build/app/outputs/flutter-apk/app-release.apk KhaataBook.apk
       - uses: actions/upload-artifact@v4
         with:
           name: KhaataBook-APK
