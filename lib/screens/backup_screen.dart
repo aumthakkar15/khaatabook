@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' show Excel;
 import 'package:flutter/material.dart';
 
 import '../db/database.dart';
