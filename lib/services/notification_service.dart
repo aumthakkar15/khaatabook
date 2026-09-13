@@ -109,6 +109,7 @@ class NotificationService {
         at,
         const NotificationDetails(android: _channel),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       );
     } catch (_) {
       // Scheduling can be refused on some devices; the in-app reminders still show.
